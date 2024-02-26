@@ -92,8 +92,8 @@ How you implement the wall follower is entirely up to you. However implementing 
 * __Set up ROS structure__: Set up your wall follower node so that it subscribes to laser messages and publishes steering commands. Make sure you can at least make the racecar move fowards at a constant speed and turning angle before working on your controller.
 * __Slice up the scan__: Consider slicing the ```ranges``` data into more useful pieces. A majority of the data won’t be useful to you if you only care about a wall to one side. When you can, try to use [```numpy```](https://numpy.org/) operations rather than for loops in your code. [Multidimensional slicing](https://docs.scipy.org/doc/numpy-1.13.0/reference/arrays.indexing.html) and [broadcasting](https://docs.scipy.org/doc/numpy-1.13.0/user/basics.broadcasting.html) can make your code cleaner and much more efficient. You can also turn any array into a ```numpy``` array with [```np.array```](https://docs.scipy.org/doc/numpy-1.13.0/reference/generated/numpy.array.html).
 * __Find the wall__: There are many ways to detect a wall in a laser scan. In a perfect world, you might be able to detect it using 2 samples of the LIDAR data. However with noisy data and uneven surfaces this might not be enough. A [least squares regression](https://en.wikipedia.org/wiki/Simple_linear_regression) is an easy way to account for more noise. The [RANSAC](https://en.wikipedia.org/wiki/Random_sample_consensus) algorithm can “upgrade” an existing model (like least squares) to be more robust to outliers. _Note: Attempt RANSAC only if you've already built a functional wall follower. It is probably overkill._
-* __Use PD or PID control__: A robust wall follower algorithm that can handle wavy wall contours and corners should probably use some sort of [PD or PID control](https://en.wikipedia.org/wiki/PID_controller#Discrete_implementation). Simple P (proportional) control is often not enough to create a responsive and stable system.
-* __Use the visualization code__: We provided an example Python script in `wall_follower` that plots a line in Rviz. You can write something similar to this in order to make sure your code (e.g. wall detection) is working!
+* __Use PD or PID control__: A robust wall follower algorithm that can handle wavy wall contours and corners should probably use some sort of [PD or PID control](https://en.wikipedia.org/wiki/PID_controller#Discrete_implementation). Simple P (proportional) control is often not enough to create a responsive and stable system. Tuning the constants of this system can be done through empirical observations or more [systematically](https://www.crossco.com/resources/technical/how-to-tune-pid-loops/).
+* __Use the visusalization code__: We provided an example Python script in `wall_follower` that plots a line in Rviz. You can write something similar to this in order to make sure your code (e.g. wall detection) is working!
 
 ## Starter Code
 
@@ -120,5 +120,26 @@ To launch the wall follower, run:
 
 ## Running the Tests
 
-Information on the autograder will be released by this weekend.  However, it should be much easier to self-check how your wall-follower is performing by watching it in Rviz!
+The git has been updated with the autograder tests. Like last lab you will be asked to run your tests locally and then submit the log.npz files that the tests generate. We have added two launch files to launch the correct simulator and tests (note: to add these files to your ros workspace see the changes to setup.py). 
+
+To launch the new simulator, run:
+
+    ros2 launch wall_follower launch_test_sim.launch.py
+
+The tester code is  in `/wall_follower_sim/wall_follower/test_wall_follower.py` 
+
+To launch the tests, run:
+
+    ros2 launch wall_follower launch_test.launch.py
+
+#### NOTE: 
+There encrypted file is not being recognised by ros2. Just download the file: (your chip type does not matter)
+
+`wall_follower_sim/wall_follower/np_encrypt.py` 
+
+## Submission
+
+There will be 6 log files created for 6 tests. These logs files will appear in your Ros2 workspace home: `racecar_docker/home/racecar_ws/TEST_NAME_log.npz` Submit all your test files to the gradescope assignment. 
+
+
 

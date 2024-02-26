@@ -8,7 +8,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 from std_msgs.msg import Header, ColorRGBA
 
-from wall_follower.visualization_tools import *
+from wall_follower.visualization_tools import VisualizationTools
 
 
 class WallFollower(Node):
