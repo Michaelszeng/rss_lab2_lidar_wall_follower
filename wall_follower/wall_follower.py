@@ -54,20 +54,20 @@ class WallFollower(Node):
         self.publisher_ = self.create_publisher(AckermannDriveStamped, 'drive', 10)  # queue size 10
         self.visualization_publisher_ = self.create_publisher(MarkerArray, 'visualization', 10)
         self.wall_visualization_publisher_ = self.create_publisher(Marker, 'wall_visualization', 10)
+        self.traj_visualization_publisher_ = self.create_publisher(Marker, 'traj_visualization', 10)
         self.lookeahead_visualization_publisher_ = self.create_publisher(Marker, 'lookahead_visualization', 10)
         timer_period = self.UPDATE_POSE_RATE
         self.timer = self.create_timer(timer_period, self.steering_cb)
 
         self.m = None  # in base_link frame
         self.b = None  # in base_link frame
-        self.min_L = 2
-        self.max_L = 4
-        self.L_ratio = 1  # ratio from v to L
+        self.min_L = 0.5
+        self.max_L = 2
+        self.L_ratio = 0.75  # ratio from v to L
         self.L_offset = self.WHEELBASE
 
         # Non-constant attributes
         self.speed = 0
-        self.heading = 0
 
 
     def plot_wall_markers(self, frame_id, coords, m, b):
@@ -127,6 +127,35 @@ class WallFollower(Node):
         self.wall_visualization_publisher_.publish(marker)
         self.visualization_publisher_.publish(marker_array)
 
+
+    def plot_traj_marker(self, frame_id, m, b):
+        """
+        Helper function to line trajectory in RViz.
+        """
+        # Draw best fit line
+        marker = Marker()
+        marker.header.frame_id = frame_id
+        marker.type = marker.LINE_STRIP
+        marker.action = marker.ADD
+        marker.scale.x = 0.05  # Line width
+        marker.color.a = 1.0
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 1.0
+
+        # Define start and end points of the line
+        start_x = 0.0
+        start_y = m*start_x + b
+        start_point = Point(x=start_x, y=start_y, z=0.0)
+        end_x = 5.0
+        end_y = m*end_x + b
+        end_point = Point(x=end_x, y=end_y, z=0.0)
+
+        marker.points.append(start_point)
+        marker.points.append(end_point)
+
+        self.traj_visualization_publisher_.publish(marker)
+
     
     def plot_lookahead_marker(self, frame_id, lookahead_pt):
         marker = Marker()
@@ -168,23 +197,57 @@ class WallFollower(Node):
         return coordinates
     
 
-    def best_fit_line(self, coords):
-        # Extract x and y coordinates
-        x = coords[:, 0]
-        y = coords[:, 1]
+    # def best_fit_line(self, coords):
+    #     # Extract x and y coordinates
+    #     x = coords[:, 0]
+    #     y = coords[:, 1]
         
-        # Calculate the necessary sums
-        N = len(coords)
-        sum_x = np.sum(x)
-        sum_y = np.sum(y)
-        sum_xy = np.sum(x * y)
-        sum_x2 = np.sum(x ** 2)
+    #     # Calculate the necessary sums
+    #     N = len(coords)
+    #     sum_x = np.sum(x)
+    #     sum_y = np.sum(y)
+    #     sum_xy = np.sum(x * y)
+    #     sum_x2 = np.sum(x ** 2)
         
-        # Calculate the slope (m) and y-intercept (b)
-        m = (N * sum_xy - sum_x * sum_y) / (N * sum_x2 - sum_x ** 2)
-        b = (sum_y - m * sum_x) / N
+    #     # Calculate the slope (m) and y-intercept (b)
+    #     m = (N * sum_xy - sum_x * sum_y) / (N * sum_x2 - sum_x ** 2)
+    #     b = (sum_y - m * sum_x) / N
         
-        return m, b  # in base_link frame
+    #     return m, b  # in base_link frame
+
+
+    def best_fit_line_ransac(self, coords, iters=100, threshold=0.1):
+        best_m = None
+        best_b = None
+        best_inliers = None
+        best_num_inliers = 0
+        
+        for _ in range(iters):
+            # Randomly select 2 points
+            indices = np.random.choice(len(coords), size=2, replace=False)
+            sample = coords[indices]
+            
+            # Fit a line to these 2 points
+            x_sample = sample[:, 0]
+            y_sample = sample[:, 1]
+            m = (y_sample[1] - y_sample[0]) / (x_sample[1] - x_sample[0])
+            b = y_sample[0] - m * x_sample[0]
+            
+            # Calculate distances from all points to the line
+            distances = np.abs(coords[:, 1] - (m * coords[:, 0] + b))
+            
+            # Count inliers
+            inliers = coords[distances < threshold]
+            num_inliers = len(inliers)
+            
+            # Update best fit if necessary
+            if num_inliers > best_num_inliers:
+                best_m = m
+                best_b = b
+                best_inliers = inliers
+                best_num_inliers = num_inliers
+                
+        return best_m, best_b
     
 
     def find_lookahead_points(self, r, m, b):
@@ -193,10 +256,25 @@ class WallFollower(Node):
         B = 2*m*b
         C = b**2 - r**2
         
-        # Solve the quadratic equation
+        # Solve quadratic equation
         discriminant = B**2 - 4*A*C
-        if discriminant < 0:
-            return []  # No real intersections
+        if discriminant < 0:  # No real intersections, find closest point on the circle to the line
+            
+            # Find the point on the line closest to the origin (center of the circle)
+            x_closest = -B / (2*A)
+            y_closest = m*x_closest + b
+            
+            # Calculate  direction vector from origin to closest point
+            direction_vector = np.array([x_closest, y_closest])
+            
+            # Normalize direction vector
+            direction_vector /= np.linalg.norm(direction_vector)
+            
+            # Scale direction vector by radius of the circle to get the point on the circle
+            x_circle = direction_vector[0] * r
+            y_circle = direction_vector[1] * r
+            
+            return [(x_circle, y_circle)]  # Return closest point on the circle
         else:
             # Calculate both solutions for x
             x1 = (-B + np.sqrt(discriminant)) / (2*A)
@@ -217,11 +295,6 @@ class WallFollower(Node):
         linear_velocity = msg.twist.twist.linear
         angular_velocity = msg.twist.twist.angular
 
-        orientation_q = msg.pose.pose.orientation
-        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
-        (roll, pitch, yaw) = tf_transformations.euler_from_quaternion(orientation_list)
-        self.heading = yaw
-
         self.get_logger().info(
             'Linear Velocity: x={:.2f} m/s, y={:.2f} m/s, z={:.2f} m/s'.format(
                 linear_velocity.x, linear_velocity.y, linear_velocity.z))
@@ -240,22 +313,35 @@ class WallFollower(Node):
         angle_increment = msg.angle_increment
         
         if self.SIDE == 1:  # left
-            angle_min = 0.261799
+            angle_min = 0.5
             angle_max = 1.570796  # pi/2
         else:  # right
             angle_min = -1.570796
-            angle_max = -0.261799 # pi/2
+            angle_max = -0.5 # pi/2
 
-        ranges = lidar_ranges[int((angle_min - lidar_angle_min)/angle_increment) : int(((angle_min - lidar_angle_min)/angle_increment) + ((angle_max - angle_min)/angle_increment))+1]
+        ranges = np.array(lidar_ranges[int((angle_min - lidar_angle_min)/angle_increment) : int(((angle_min - lidar_angle_min)/angle_increment) + ((angle_max - angle_min)/angle_increment))+1])
 
         # Convert ranges to x,y coordinates
         coordinates = self.polar_to_cartesian(ranges, angle_min, angle_max, angle_increment)  # Nx2
         # self.get_logger().info(f"coordinates: {coordinates}")
 
         # Fit line to x,y coordinates
-        m, b = self.best_fit_line(coordinates)
+        # m, b = self.best_fit_line(coordinates)
+        m, b = self.best_fit_line_ransac(coordinates)
 
         self.plot_wall_markers("base_link", coordinates, m, b)
+
+        # Offset line to be desired distance off the wall
+        m_angle = math.atan(m)
+        b_offset = abs(self.DESIRED_DISTANCE / np.cos(m_angle))
+
+        # Figure out which direction to offset the wall
+        if (b > 0):
+            b = b - b_offset
+        else:
+            b = b + b_offset
+
+        self.plot_traj_marker("base_link", m, b)
 
         self.m = m
         self.b = b
@@ -264,24 +350,24 @@ class WallFollower(Node):
     def steering_cb(self):
         if self.m != None and self.b != None:
             L = max(self.min_L, min(self.max_L, self.L_ratio*self.speed))  # bound between min_L and max_L
+            self.get_logger().info(f"L: {L}")
             lookahead_pts = self.find_lookahead_points(L, self.m, self.b)  # in base_link frame
-            if len(lookahead_pts) > 0:
-                lookahead_pt = max(lookahead_pts, key=lambda point: point[0])
-                self.plot_lookahead_marker('base_link', lookahead_pt)
-                self.get_logger().info(f"lookahead_pt: {lookahead_pt}")
-            else:
-                self.get_logger().info(f"No lookahead point found.")
+            lookahead_pt = max(lookahead_pts, key=lambda point: point[0])  # in base_link frame
+            self.plot_lookahead_marker('base_link', lookahead_pt)
+            self.get_logger().info(f"lookahead_pt: {lookahead_pt}")
 
-        # steering_angle = np.arctan2((self.WHEELBASE*np.sin(eta)) / ((0.5*L) + (self.L_offset*np.cos(eta))))
+            eta = np.arctan2(lookahead_pt[1], lookahead_pt[0])  # angle relative to base_link x-axis
 
-        drive_msg = AckermannDriveStamped()
-        # drive_msg.drive.steering_angle = 
-        # drive_msg.drive.steering_angle_velocity = 
-        # drive_msg.drive.speed = 
-        # drive_msg.drive.acceleration = 
-        # drive_msg.drive.jerk = 
-        self.publisher_.publish(drive_msg)
-        # self.get_logger().info(f"Publishing: {1}")
+            steering_angle = math.atan((self.WHEELBASE*np.sin(eta)) / ((0.5*L) + (self.L_offset*np.cos(eta))))
+
+            drive_msg = AckermannDriveStamped()
+            drive_msg.drive.steering_angle = steering_angle
+            # drive_msg.drive.steering_angle_velocity = 
+            drive_msg.drive.speed = self.VELOCITY
+            # drive_msg.drive.acceleration = 
+            # drive_msg.drive.jerk = 
+            self.publisher_.publish(drive_msg)
+            # self.get_logger().info(f"Publishing: {1}")
 
 
 def main():
