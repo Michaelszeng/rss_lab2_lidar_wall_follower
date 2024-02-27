@@ -120,6 +120,7 @@ To launch the wall follower, run:
 
 ## Running the Tests
 
+
 The git has been updated with the autograder tests. Like last lab you will be asked to run your tests locally and then submit the log.npz files that the tests generate. We have added two launch files to launch the correct simulator and tests (note: to add these files to your ros workspace see the changes to setup.py). 
 
 To launch the new simulator, run:
@@ -132,6 +133,14 @@ To launch the tests, run:
 
     ros2 launch wall_follower launch_test.launch.py
 
+
+## Important in your wall_follower.py you need to add these 3 lines to your laser_callback function. This will allow the tests to update the desired side, distance, and velocity. These params should also not be manually overridden. 
+
+    self.SIDE = self.get_parameter('side').get_parameter_value().integer_value
+    self.VELOCITY = self.get_parameter('velocity').get_parameter_value().double_value
+    self.DESIRED_DISTANCE = self.get_parameter('desired_distance').get_parameter_value().double_value
+
+
 #### NOTE: 
 There encrypted file is not being recognised by ros2. Just download the file: (your chip type does not matter)
 
@@ -139,7 +148,8 @@ There encrypted file is not being recognised by ros2. Just download the file: (y
 
 ## Submission
 
-There will be 6 log files created for 6 tests. These logs files will appear in your Ros2 workspace home: `racecar_docker/home/racecar_ws/TEST_NAME_log.npz` Submit all your test files to the gradescope assignment. 
+There will be 6 log files created for 6 tests. These logs files will appear in your Ros2 workspace home: `racecar_docker/home/racecar_ws/TEST_NAME_log.npz` Submit all your test files to the [gradescope assignment](https://www.gradescope.com/courses/728544). 
 
+(if you have not generated all the files because you have not passed all the tests you can still get partial points from submitting whatever files you do have)
 
 
