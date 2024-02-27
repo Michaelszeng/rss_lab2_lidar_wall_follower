@@ -72,6 +72,9 @@ class WallFollower(Node):
         self.ransac_thresh = 0.175
         self.ransac_success_thresh = 0.3
         self.range_thresh = 4  # ignore any range measurements further than this
+        self.kp = 4.0
+        # self.kd = 0.4
+        self.kd = 0.0
 
         # Non-constant attributes
         self.speed = 0
@@ -243,12 +246,15 @@ class WallFollower(Node):
         return best_m, best_b
             
 
-    def pd(self, e, angle, kp=10.0, kd=0.01):
+    def pd(self, e, angle):
         """
         PD controller for steering command. Angle is used as derivative, since
         it is proportional to the rate of change of e.
         """
-        return -(kp * e) + (kd * angle)
+        if self.SIDE == -1:
+            return -(self.kp * e) + (self.kd * angle)
+        else:
+            return (self.kp * e) + (self.kd * angle)
 
 
     def odom_callback(self, msg):
@@ -267,6 +273,11 @@ class WallFollower(Node):
 
 
     def laser_scan_cb(self, msg):
+        # For grading:
+        self.SIDE = self.get_parameter('side').get_parameter_value().integer_value
+        self.VELOCITY = self.get_parameter('velocity').get_parameter_value().double_value
+        self.DESIRED_DISTANCE = self.get_parameter('desired_distance').get_parameter_value().double_value
+
         lidar_ranges = msg.ranges
         lidar_angle_min = msg.angle_min  # -2.3550000190734863
         lidar_angle_max = msg.angle_max  # 2.3550000190734863
@@ -318,10 +329,7 @@ class WallFollower(Node):
 
             drive_msg = AckermannDriveStamped()
             drive_msg.drive.steering_angle = steering_angle
-            # drive_msg.drive.steering_angle_velocity = 
             drive_msg.drive.speed = self.VELOCITY
-            # drive_msg.drive.acceleration = 
-            # drive_msg.drive.jerk = 
             self.publisher_.publish(drive_msg)
             # self.get_logger().info(f"Publishing: {1}")
 
