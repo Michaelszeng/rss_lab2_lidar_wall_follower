@@ -297,7 +297,11 @@ class WallFollower(Node):
 
         # Fit line to x,y coordinates
         # If there are many nearby points in front of the car, do simple linear regression
-        ranges_front_of_car = list(lidar_ranges[int((-0.4 - lidar_angle_min)/angle_increment) : int(((angle_min - lidar_angle_min)/angle_increment) + (0.8/angle_increment))])
+        ranges_front_of_car = list(lidar_ranges[int((-0.4 - lidar_angle_min)/angle_increment) : int(((-0.4 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))])
+        # self.get_logger().info(f"int((-0.4 - lidar_angle_min)/angle_increment): {int((-0.4 - lidar_angle_min)/angle_increment)}")
+        # self.get_logger().info(f"int(((angle_min - lidar_angle_min)/angle_increment) + (0.8/angle_increment)): {int(((-0.4 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))}")
+        # self.get_logger().info(f"ranges_front_of_car: {ranges_front_of_car}")
+        # self.get_logger().info(f"len(ranges_front_of_car): {(ranges_front_of_car)}")
         if sum(ranges_front_of_car)/(len(ranges_front_of_car) + 1e-6) < self.linear_regression_theshold_dist:
             self.get_logger().info("Using linear regression instead of RANSAC.")
             m, b = self.best_fit_line(coordinates)
