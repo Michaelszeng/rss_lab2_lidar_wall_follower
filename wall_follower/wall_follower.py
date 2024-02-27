@@ -64,17 +64,15 @@ class WallFollower(Node):
         self.L_offset = self.WHEELBASE
 
         # Hyperparameters
-        self.min_L = 0.5
-        self.max_L = 2
-        self.L_ratio = 0.75  # ratio from v to L
-        self.forward_angle = -0.1
+        self.forward_angle = -0.2
         self.back_angle = 2.2
         self.ransac_thresh = 0.175
-        self.ransac_success_thresh = 0.3
+        self.ransac_success_thresh = 0.2
         self.range_thresh = 4  # ignore any range measurements further than this
-        self.kp = 4.0
-        # self.kd = 0.4
-        self.kd = 0.0
+        self.linear_regression_theshold_dist = 2.5*self.DESIRED_DISTANCE
+        self.kp = 2.0
+        self.kd = 0.4
+        # self.kd = 0.0
 
         # Non-constant attributes
         self.speed = 0
@@ -238,10 +236,10 @@ class WallFollower(Node):
                 best_inliers = inliers
                 best_num_inliers = num_inliers
         
-        if num_inliers < self.ransac_success_thresh * len(coords):
-            self.get_logger().info("Too many outliers for RANSAC; deferring to linear regression.")
-            # Very large proportion of outliers,so just defer to normal linear regressoin
-            return self.best_fit_line(coords)
+        # if num_inliers < self.ransac_success_thresh * len(coords):
+        #     self.get_logger().info("Too many outliers for RANSAC; deferring to linear regression.")
+        #     # Very large proportion of outliers,so just defer to normal linear regressoin
+        #     return self.best_fit_line(coords)
                 
         return best_m, best_b
             
@@ -298,8 +296,13 @@ class WallFollower(Node):
         # self.get_logger().info(f"coordinates: {coordinates}")
 
         # Fit line to x,y coordinates
-        # m, b = self.best_fit_line(coordinates)
-        m, b = self.best_fit_line_ransac(coordinates)
+        # If there are many nearby points in front of the car, do simple linear regression
+        ranges_front_of_car = list(lidar_ranges[int((-0.4 - lidar_angle_min)/angle_increment) : int(((angle_min - lidar_angle_min)/angle_increment) + (0.8/angle_increment))])
+        if sum(ranges_front_of_car)/(len(ranges_front_of_car) + 1e-6) < self.linear_regression_theshold_dist:
+            self.get_logger().info("Using linear regression instead of RANSAC.")
+            m, b = self.best_fit_line(coordinates)
+        else:  # Otherwise, use RANSAC
+            m, b = self.best_fit_line_ransac(coordinates)
         
         if len(coordinates > 0):
             self.plot_wall_markers("base_link", coordinates, m, b)
