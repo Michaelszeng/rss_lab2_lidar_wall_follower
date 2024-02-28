@@ -37,6 +37,10 @@ class WallFollower(Node):
         self.WHEELBASE = self.get_parameter('wheelbase').get_parameter_value().double_value
         self.UPDATE_POSE_RATE = self.get_parameter('update_pose_rate').get_parameter_value().double_value
 
+        self.get_logger().info(f"self.SIDE: {self.SIDE}")
+        self.get_logger().info(f"self.VELOCITY: {self.VELOCITY}")
+        self.get_logger().info(f"self.DESIRED_DISTANCE: {self.DESIRED_DISTANCE}")
+
         # Initialize publishers and subscribers
         self.subscription = self.create_subscription(
             LaserScan,
@@ -51,11 +55,9 @@ class WallFollower(Node):
             self.odom_callback,
             10)  # To get velocity/speed data to determine lookahead distance
 
-        self.publisher_ = self.create_publisher(AckermannDriveStamped, 'drive', 10)  # queue size 10
+        self.publisher_ = self.create_publisher(AckermannDriveStamped, self.DRIVE_TOPIC, 10)  # queue size 10
         self.visualization_publisher_ = self.create_publisher(MarkerArray, 'visualization', 10)
         self.wall_visualization_publisher_ = self.create_publisher(Marker, 'wall_visualization', 10)
-        self.traj_visualization_publisher_ = self.create_publisher(Marker, 'traj_visualization', 10)
-        self.lookeahead_visualization_publisher_ = self.create_publisher(Marker, 'lookahead_visualization', 10)
         timer_period = self.UPDATE_POSE_RATE
         self.timer = self.create_timer(timer_period, self.steering_cb)
 
@@ -69,9 +71,9 @@ class WallFollower(Node):
         self.ransac_thresh = 0.175
         self.ransac_success_thresh = 0.2
         self.range_thresh = 4  # ignore any range measurements further than this
-        self.linear_regression_theshold_dist = 2.5*self.DESIRED_DISTANCE
-        self.kp = 2.0
-        self.kd = 0.4
+        self.linear_regression_theshold_dist = 2.0 * self.DESIRED_DISTANCE
+        self.kp = 0.8/(self.VELOCITY**2)
+        self.kd = 0.2666*(self.VELOCITY**2)
         # self.kd = 0.0
 
         # Non-constant attributes
@@ -124,45 +126,20 @@ class WallFollower(Node):
         marker.color.b = 1.0
 
         # Define start and end points of the line
-        start_x = coords[0,0]
-        start_y = m*start_x + b
-        start_point = Point(x=start_x, y=start_y, z=0.0)
-        end_x = coords[-1,0]
-        end_y = m*end_x + b
-        end_point = Point(x=end_x, y=end_y, z=0.0)
+        if m is not None and b is not None:
+            start_x = coords[0,0]
+            start_y = m*start_x + b
+            start_point = Point(x=start_x, y=start_y, z=0.0)
+            end_x = coords[-1,0]
+            end_y = m*end_x + b
+            end_point = Point(x=end_x, y=end_y, z=0.0)
 
-        marker.points.append(start_point)
-        marker.points.append(end_point)
+            marker.points.append(start_point)
+            marker.points.append(end_point)
 
-        self.wall_visualization_publisher_.publish(marker)
+            self.wall_visualization_publisher_.publish(marker)
+
         self.visualization_publisher_.publish(marker_array)
-
-    
-    def plot_lookahead_marker(self, frame_id, lookahead_pt):
-        marker = Marker()
-        marker.header.frame_id = frame_id
-        marker.header.stamp = self.get_clock().now().to_msg()
-        marker.ns = "lookahead_pt"
-        marker.id = 0
-        marker.type = Marker.SPHERE
-        marker.action = Marker.ADD
-        marker.pose.position.x = lookahead_pt[0]
-        marker.pose.position.y = lookahead_pt[1]
-        marker.pose.position.z = 0.0
-        marker.pose.orientation.x = 0.0
-        marker.pose.orientation.y = 0.0
-        marker.pose.orientation.z = 0.0
-        marker.pose.orientation.w = 1.0
-        marker.color.a = 1.0
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
-        # Size of the point
-        marker.scale.x = 0.25
-        marker.scale.y = 0.25
-        marker.scale.z = 0.25
-
-        self.lookeahead_visualization_publisher_.publish(marker)
 
     def polar_to_cartesian(self, ranges, angle_min, angle_max, angle_increment):
         # Calculate the angles for each range
@@ -201,6 +178,38 @@ class WallFollower(Node):
         
         return m, b  # in base_link frame
 
+
+    # def best_fit_line(self, coords):
+    #     # Extract x and y coordinates
+    #     x = coords[:, 0]
+    #     y = coords[:, 1]
+        
+    #     # Calculate the quartiles and IQR for y
+    #     Q1 = np.percentile(y, 25)
+    #     Q3 = np.percentile(y, 75)
+    #     IQR = Q3 - Q1
+        
+    #     # Determine the outlier boundaries
+    #     lower_bound = Q1 - 1.5 * IQR
+    #     upper_bound = Q3 + 1.5 * IQR
+        
+    #     # Filter out outlier points
+    #     non_outlier_indices = (y >= lower_bound) & (y <= upper_bound)
+    #     x_filtered = x[non_outlier_indices]
+    #     y_filtered = y[non_outlier_indices]
+        
+    #     # Calculate the necessary sums with filtered data
+    #     N = len(x_filtered)
+    #     sum_x = np.sum(x_filtered)
+    #     sum_y = np.sum(y_filtered)
+    #     sum_xy = np.sum(x_filtered * y_filtered)
+    #     sum_x2 = np.sum(x_filtered ** 2)
+        
+    #     # Calculate m and b with filtered data
+    #     m = (N * sum_xy - sum_x * sum_y) / (N * sum_x2 - sum_x ** 2)
+    #     b = (sum_y - m * sum_x) / N
+        
+    #     return m, b  # in base_link frame
 
     def best_fit_line_ransac(self, coords, iters=100):
         best_m = None
@@ -297,13 +306,16 @@ class WallFollower(Node):
 
         # Fit line to x,y coordinates
         # If there are many nearby points in front of the car, do simple linear regression
-        ranges_front_of_car = list(lidar_ranges[int((-0.4 - lidar_angle_min)/angle_increment) : int(((-0.4 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))])
-        # self.get_logger().info(f"int((-0.4 - lidar_angle_min)/angle_increment): {int((-0.4 - lidar_angle_min)/angle_increment)}")
-        # self.get_logger().info(f"int(((angle_min - lidar_angle_min)/angle_increment) + (0.8/angle_increment)): {int(((-0.4 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))}")
+        ranges_front_of_car = list(lidar_ranges[int((-0.6 - lidar_angle_min)/angle_increment) : int(((-0.6 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))])
+        # self.get_logger().info(f"int((-0.6 - lidar_angle_min)/angle_increment): {int((-0.6 - lidar_angle_min)/angle_increment)}")
+        # self.get_logger().info(f"int(((angle_min - lidar_angle_min)/angle_increment) + (0.8/angle_increment)): {int(((-0.6 - lidar_angle_min)/angle_increment) + (0.8/angle_increment))}")
         # self.get_logger().info(f"ranges_front_of_car: {ranges_front_of_car}")
         # self.get_logger().info(f"len(ranges_front_of_car): {(ranges_front_of_car)}")
         if sum(ranges_front_of_car)/(len(ranges_front_of_car) + 1e-6) < self.linear_regression_theshold_dist:
             self.get_logger().info("Using linear regression instead of RANSAC.")
+            # Duplicate the points in front of the car to give them more weight
+            front_coordinates = coordinates[int((-0.6 - lidar_angle_min)/angle_increment) : int(((-0.6 - lidar_angle_min)/angle_increment) + (0.8/angle_increment)),:]  # Mx2
+            coordinates = np.vstack([coordinates, front_coordinates, front_coordinates, front_coordinates, front_coordinates])
             m, b = self.best_fit_line(coordinates)
         else:  # Otherwise, use RANSAC
             m, b = self.best_fit_line_ransac(coordinates)
@@ -338,7 +350,7 @@ class WallFollower(Node):
             drive_msg.drive.steering_angle = steering_angle
             drive_msg.drive.speed = self.VELOCITY
             self.publisher_.publish(drive_msg)
-            # self.get_logger().info(f"Publishing: {1}")
+            # self.get_logger().info(f"Publishing steering_angle: {drive_msg.drive.steering_angle} and velocity: {drive_msg.drive.speed}")
 
 
 def main():

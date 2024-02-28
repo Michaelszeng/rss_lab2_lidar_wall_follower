@@ -13,7 +13,7 @@ import numpy as np
 
 
 def generate_launch_description():
-     
+
     wall_follower = Node(
         package="wall_follower",
         executable="wall_follower",
@@ -65,7 +65,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'side ',
             '1'
         ]],
@@ -76,7 +76,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'side ',
             '-1'
         ]],
@@ -86,7 +86,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'velocity ',
             '2.'
         ]],
@@ -97,7 +97,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'side ',
             '1'
         ]],
@@ -108,7 +108,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'side ',
             '-1'
         ]],
@@ -118,7 +118,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'side ',
             '1'
         ]],
@@ -128,7 +128,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'velocity ',
             '3.'
         ]],
@@ -138,7 +138,7 @@ def generate_launch_description():
         cmd=[[
             FindExecutable(name='ros2'),
             ' param set ',
-            '/wall_follower_ns/wall_follower ', 
+            '/wall_follower_ns/wall_follower ',
             'desired_distance ',
             '0.72'
         ]],
@@ -275,11 +275,11 @@ def generate_launch_description():
             ('/test6/tf_static', '/tf_static'),
         ]
     )
-    
+
 
     return LaunchDescription([
         test1,
-        
+
         RegisterEventHandler(
             OnProcessStart(
                 target_action=test1,
@@ -290,7 +290,7 @@ def generate_launch_description():
                         period=1.0,
                         actions=[wall_follower],
                     )
-                    
+
                 ]
             )
         ),
@@ -298,52 +298,7 @@ def generate_launch_description():
             OnProcessExit(
                 target_action=test1,
                 on_exit=[
-                    LogInfo(msg='Test 1 finished, Starting Test 2'),
-                    # stop_car,
-                    setup_side2,
-                    test2,
-                ]
-            )
-        ),
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=test2,
-                on_exit=[
-                    LogInfo(msg='Test 2 finished, Starting Test 3'),
-                    # stop_car,
-                    setup_side3,
-                    test3,
-                    setup_v3
-                ]
-            )
-        ),
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=test3,
-                on_exit=[
-                    LogInfo(msg='Test 3 finished, Starting Test 4'),
-                    # stop_car,
-                    setup_side4,
-                    test4
-                ]
-            )
-        ),
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=test4,
-                on_exit=[
-                    LogInfo(msg='Test 4 finished, Starting Test 5'),
-                    # stop_car,
-                    setup_side5,
-                    test5
-                ]
-            )
-        ),
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=test5,
-                on_exit=[
-                    LogInfo(msg='Test 5 finished, Starting Test 6'),
+                    LogInfo(msg='Test 1 finished, Starting Test 6'),
                     # stop_car,
                     setup_side6,
                     test6,
@@ -352,4 +307,84 @@ def generate_launch_description():
                 ]
             )
         ),
+
+
+
+
+
+
+        # test1,
+
+        # RegisterEventHandler(
+        #     OnProcessStart(
+        #         target_action=test1,
+        #         on_start=[
+        #             LogInfo(msg='Test 1 started, starting wall follower'),
+
+        #             TimerAction(
+        #                 period=1.0,
+        #                 actions=[wall_follower],
+        #             )
+
+        #         ]
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=test1,
+        #         on_exit=[
+        #             LogInfo(msg='Test 1 finished, Starting Test 2'),
+        #             # stop_car,
+        #             setup_side2,
+        #             test2,
+        #         ]
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=test2,
+        #         on_exit=[
+        #             LogInfo(msg='Test 2 finished, Starting Test 3'),
+        #             # stop_car,
+        #             setup_side3,
+        #             test3,
+        #             setup_v3
+        #         ]
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=test3,
+        #         on_exit=[
+        #             LogInfo(msg='Test 3 finished, Starting Test 4'),
+        #             # stop_car,
+        #             setup_side4,
+        #             test4
+        #         ]
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=test4,
+        #         on_exit=[
+        #             LogInfo(msg='Test 4 finished, Starting Test 5'),
+        #             # stop_car,
+        #             setup_side5,
+        #             test5
+        #         ]
+        #     )
+        # ),
+        # RegisterEventHandler(
+        #     OnProcessExit(
+        #         target_action=test5,
+        #         on_exit=[
+        #             LogInfo(msg='Test 5 finished, Starting Test 6'),
+        #             # stop_car,
+        #             setup_side6,
+        #             test6,
+        #             setup_v6,
+        #             setup_d6
+        #         ]
+        #     )
+        # ),
     ])
